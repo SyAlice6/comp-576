@@ -3,6 +3,8 @@
         "iterator": "cpp",
         "utility": "cpp",
         "__config": "cpp",
-        "__nullptr": "cpp"
+        "__nullptr": "cpp",
+        "__functional_03": "cpp",
+        "functional": "cpp"
     }
 }

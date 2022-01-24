@@ -5,6 +5,10 @@
 #include "MyDB_BufferManager.h"
 #include "MyDB_Page.h"
 
+#include <map>
+
+using namespace std;
+
 // Define and implement LRU Cache
 // Notice: Head is just a pointer, head -> next is the first node in the DLL
 
@@ -49,7 +53,7 @@ Node* LRUCache :: getTail(){
 }
 
 // return the current total nodes in the LRU Cache
-int LRUCache :: int getCacheSize(){
+int LRUCache :: getCacheSize(){
     return this -> cacheSize;
 }
 
@@ -100,8 +104,15 @@ Node* LRUCache :: popTail(){
     if(lastNode == head) return nullptr;
 
     // write the bytes back to disk if the byte is dirty
+    // add something here, isDirty()
 
-    this -> removeNode(lastNode); // call deleteNode, then call removeNode
+    MyDB_PagePtr page = lastNode->getPage();
+    this->deleteNode(lastNode);
+
+    if(page -> getReferenceCounter() == 0){ // refCount = 0, kill the page
+        this->parentManager.killPage(page->getParentTable(), page->getOffset());
+    }
+
     return lastNode;
 }
 
@@ -111,25 +122,48 @@ Node* LRUCache :: findNode(pair<MyDB_TablePtr, size_t> identifier){
         // find the node, move to head, then return it
         Node *target = map.find(identifier) -> second;
         this -> moveToHead(target);
-        return target
+        return target;
     }else{ // didn't find the key in the map
         return nullptr;
     }
 }
 
-// Add a newNode to the LRU linkedlist     ?
+// Add a newNode to the LRU linkedlist and Ram
 Node* LRUCache :: addToList(pair<MyDB_TablePtr, size_t> identifier, MyDB_PagePtr page){
     // give the page's byte an address
     page->setBytes(this -> parentManager.availableRam[this->parentManager.availableRam.size () - 1]);
-    // clean up the address given above
-    this ->parentManager.availableRam.pop_back();
-    
+    // remove one availableRam since we just assign one above
+    this->parentManager.availableRam.pop_back();
 
-
+    // create a new Node
+    Node *newNode = new Node(page);
+    // push the node to the LRU Hashmap
+    map[make_pair(identifier.first, identifier.second)] = newNode;
+    // Add this node to the head of the list
+    addNewNode(newNode);
+    // increment current size
+    currSize += 1;
+    return newNode;
 }
 
-// Delete a certain node from the linked list    ?
-void LRUCache :: deleteNode(Node *node);
+// Delete a certain node from the linked list and RAM
+void LRUCache :: deleteNode(Node *node){
+    // Remove node from list
+    removeNode(node);
+
+    // find the page object the node refer to
+    MyDB_PagePtr page = node -> getPage();
+    // delete this page object from the RAM, add this space back to availableRam
+    this->parentManager.availableRam.push_back (page->bytes);
+    
+    // delete the page from the hashmap
+    map.erase(page -> getPageIndex());
+    // set the page's byte to be null
+    page -> bytes = nullptr;
+    currSize -= 1;
+}
+
+#endif
 
 
 
